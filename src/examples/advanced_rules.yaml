@@ -1,0 +1,28 @@
+rules:
+  - type: null_percentage
+    threshold: 1.0
+    description: "Missing data check (max 1% nulls)"
+    
+  - type: unique_value
+    threshold: 95.0
+    description: "Uniqueness check for ID columns"
+    
+  - type: value_range
+    min_value: 0
+    max_value: 1000
+    description: "Values must be between 0 and 1000"
+    
+  - type: pattern_match
+    pattern: "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+    name: "email_format_check"
+    description: "Email addresses should have valid format"
+    
+  - type: pattern_match
+    pattern: "^\\d{3}-\\d{3}-\\d{4}$"
+    name: "us_phone_format_check"
+    description: "US phone numbers should be in XXX-XXX-XXXX format"
+    
+  - type: pattern_match
+    pattern: "^[A-Z]{2}\\d{6}$"
+    name: "product_code_check"
+    description: "Product codes should be 2 uppercase letters followed by 6 digits"
