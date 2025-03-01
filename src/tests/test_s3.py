@@ -1,4 +1,7 @@
+from datacanary.utils.logging import setup_logging
 from datacanary.connectors.s3_connector import S3Connector
+
+setup_logging()
 
 # Define your bucket and key here
 BUCKET_NAME = "datacanary-test-bucket"  # Replace with your actual bucket name
