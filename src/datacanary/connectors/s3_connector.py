@@ -78,7 +78,7 @@ class S3Connector:
         logger.info(f"Found {len(result)} Parquet files")
         return result
     
-    def get_object_metadeta(self, bucket, key):
+    def get_object_metadata(self, bucket, key):
         """
         Get metadata for an S3 object.
 
