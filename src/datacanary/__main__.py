@@ -6,6 +6,8 @@ import json
 import sys
 import logging
 
+from datacanary import __version__
+
 from datacanary.connectors.s3_connector import S3Connector
 from datacanary.analysers.statistical_analyser import StatisticalAnalyser
 from datacanary.rules.rule_engine import (
@@ -18,6 +20,7 @@ def main():
     """Main entry point for the DataCanary CLI."""
     # Set up argument parser
     parser = argparse.ArgumentParser(description="DataCanary - Data Quality Tool")
+    parser.add_argument('--version', action='version', version=f'DataCanary v{__version__}')
     
     # Create subparsers for different commands
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
