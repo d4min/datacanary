@@ -9,6 +9,9 @@ setup(
         "pandas",
         "boto3",
         "pyarrow",
+        "azure-storage-blob>=12.0.0",
+        "pyyaml",           
+        "numpy",
     ],
     entry_points={
         "console_scripts": [
