@@ -13,7 +13,7 @@ class S3Connector:
         Args:
             aws_profile: Optional AWS profile name to use for credentials 
         """
-        self.session = boto3.session(profile_name = aws_profile)
+        self.session = boto3.Session(profile_name = aws_profile)
         self.s3 = self.session.client('s3')
 
     def read_parquet(self, bucket, key):
@@ -40,4 +40,52 @@ class S3Connector:
             return pd.read_parquet(s3_uri)
         except Exception as e:
             print(f"Error reading Parquet file from {s3_uri}: {e}")
+            raise
+
+    def list_parquet_files(self, bucket, prefix=""):
+        """
+        List all parquet files in a bucket with the given prefix. 
+
+        Args:
+            bucket: S3 bucket name
+            prefix: Optional prefix to filter objects
+
+        Returns:
+            List of S3 keys for Parquet files. 
+        """
+        result = []
+        paginator = self.s3.get_paginator('list_objects_v2')
+
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            if 'Contents' not in page:
+                continue
+
+            for obj in page['Contents']:
+                key = obj['Key']
+                if key.endswith('.parquet'):
+                    result.append(key)
+
+        return result
+    
+    def get_object_metadeta(self, bucket, key):
+        """
+        Get metadata for an S3 object.
+
+        Args:
+            bucket: S3 bucket name
+            key: S3 object key
+
+        Returns:
+            Dictionary of object metadata
+        """
+        try:
+            response = self.s3.head_object(Bucket=bucket, Key=key)
+            return {
+                'size_bytes': response.get('ContentLength', 0),
+                'last_modified': response.get('LastModified'),
+                'content_type': response.get('ContentType'),
+                'metadata': response.get('Metadata', {})
+            }
+        except Exception as e:
+            print(f"Error getting metadata for s3://{bucket}/{key}: {e}")
             raise
