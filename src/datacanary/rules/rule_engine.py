@@ -10,16 +10,40 @@ class Rule:
     """
     Base class for data quality rules.
     """
-    def __init__(self, name, description):
+    def __init__(self, name, description, applicable_types):
         """
         Initialise a rule.
 
         Args:
             name: Name of the rule
             description: Description of the rule
+            applicable_types: List of data types this rule applies to (None means all types)
         """
         self.name = name
         self.description = description
+        self.applicable_types = applicable_types
+
+    def is_applicable(self, column_stats):
+        """
+        Check if this rule is applicable to the given column.
+
+        Args:
+            column_stats: Dictionary of statistics for a column
+
+        Returns:
+            bool: True if the rule is applicable, False if not
+        """
+        if self.applicable_types is None:
+            return True
+
+        if 'type' not in column_stats:
+            return False
+        
+        col_type = column_stats['type']
+
+        for applicable_type in self.applicable_types:
+            if isinstance(applicable_type, str) and col_type.startswith(applicable_type):
+                return True
 
     def evaluate(self, column_stats):
         """
@@ -49,7 +73,8 @@ class NullPercentageRule(Rule):
         """
         super().__init__(
             name = "null_percentage_check",
-            description = f"Check if null percentage is below {threshold}%"
+            description = f"Check if null percentage is below {threshold}%",
+            applicable_types=None  # Applies to all column types
         )
         self.threshold = threshold
 
@@ -94,7 +119,8 @@ class UniqueValueRule(Rule):
         """
         super().__init__(
             name="unique_value_check",
-            description=f"Check if unique value percentage is at least {threshold}%"
+            description=f"Check if unique value percentage is at least {threshold}%",
+            applicable_types=None  # Applies to all column types
         )
         self.threshold = threshold
 
@@ -148,7 +174,8 @@ class ValueRangeRule(Rule):
             
         super().__init__(
             name="value_range_check",
-            description=description
+            description=description,
+            applicable_types=["int", "float", "numeric"]  # Only applies to numeric columns
         )
         self.min_value = min_value
         self.max_value = max_value
@@ -163,16 +190,6 @@ class ValueRangeRule(Rule):
         Returns:
             dict: Evaluation result
         """
-        # Check if column is numeric
-        if ('type' not in column_stats or 
-                not (column_stats['type'].startswith('int') or 
-                     column_stats['type'].startswith('float'))):
-            return {
-                "passed": False,
-                "reason": "Not applicable",
-                "details": f"Column type {column_stats.get('type', 'unknown')} is not numeric"
-            }
-        
         # Check if required stats are available
         if 'stats' not in column_stats or 'min' not in column_stats['stats'] or 'max' not in column_stats['stats']:
             logger.warning(f"Cannot evaluate {self.name}: required statistics not found")
@@ -251,6 +268,10 @@ class RuleEngine:
         results = []
         
         for rule in self.rules:
+            if not rule.is_applicable(column_stats):
+                logger.info(f"Skipping rule {rule.name} - not applicable to column {column_name} of type {column_stats.get('type', 'unknown')}")
+                continue
+
             try:
                 result = rule.evaluate(column_stats)
                 results.append({
