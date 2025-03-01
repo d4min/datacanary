@@ -201,3 +201,4 @@ htmlcov/
 EOL
 
 src/datacanary/reporting/reports/*
+src/examples/data/*
