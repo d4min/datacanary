@@ -8,7 +8,7 @@ import yaml
 import logging
 
 from datacanary.rules.rule_engine import (
-    Rule, NullPercentageRule, UniqueValueRule, ValueRangeRule, RuleEngine
+    Rule, NullPercentageRule, UniqueValueRule, ValueRangeRule, PatternMatchRule, RuleEngine
 )
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,16 @@ def create_rule_from_config(rule_config):
             min_value = rule_config.get('min_value')
             max_value = rule_config.get('max_value')
             return ValueRangeRule(min_value=min_value, max_value=max_value)
-        
+
+        elif rule_type == 'pattern_match':
+            pattern = rule_config.get('pattern')
+            if not pattern:
+                logger.warning("Pattern match rule missing 'pattern' key, skipping")
+                return None
+            name = rule_config.get('name')
+            description = rule_config.get('description')
+            return PatternMatchRule(pattern=pattern, name=name, description=description)
+
         else:
             logger.warning(f"Unknown rule type: {rule_type}")
             return None

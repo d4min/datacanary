@@ -63,6 +63,7 @@ class StatisticalAnalyser:
                         "negative_count": (non_null_data < 0).sum()
                     })
 
+            # For string/object columns, add sample value collection:
             elif pd.api.types.is_string_dtype(col_data) or pd.api.types.is_object_dtype(col_data):
                 non_null_data = col_data.dropna()
                 if len(non_null_data) > 0:
@@ -73,7 +74,9 @@ class StatisticalAnalyser:
                         "max_length": int(str_lengths.max()),
                         "mean_length": float(str_lengths.mean()),
                         "empty_string_count": (non_null_data == "").sum(),
-                        "empty_string_percentage": round((non_null_data == "").mean() * 100, 2)
+                        "empty_string_percentage": round((non_null_data == "").mean() * 100, 2),
+                        # Add sample values for pattern matching (up to 10 samples)
+                        "sample_values": non_null_data.sample(min(10, len(non_null_data))).tolist()
                     })
 
             elif pd.api.types.is_datetime64_dtype(col_data):

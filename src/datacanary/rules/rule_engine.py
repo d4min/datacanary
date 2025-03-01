@@ -2,6 +2,7 @@
 Rule engine for DataCanary.
 Defines and evaluates data quality rules.
 """
+import re
 import logging
 
 logger = logging.getLogger(__name__)
@@ -182,7 +183,7 @@ class ValueRangeRule(Rule):
     
     def evaluate(self, column_stats):
         """
-        Evaluate if values are within specified range.
+        Evaluate if values are within specified ran.
         
         Args:
             column_stats: Dictionary of statistics for a column
@@ -230,6 +231,87 @@ class ValueRangeRule(Rule):
             "actual_max": max_val,
             "expected_min": self.min_value,
             "expected_max": self.max_value,
+            "message": message
+        }
+    
+class PatternMatchRule(Rule):
+    """
+    Rule to check if string values match a specified pattern.
+    """
+    def __init__(self, pattern, name=None, description=None):
+        """
+        Initialise the Rule.
+
+        Args:
+            pattern: Regular expression pattern to match 
+            name: Custom name for the rule (defaults to 'pattern_match_rule')
+            description: Custom description (defaults to a generic description)
+        """
+        rule_name = name or "pattern_match_rule"
+        rule_desc = description or f"Check if values match pattern: {pattern}"
+
+        super().__init__(
+            name=rule_name,
+            description=rule_desc,
+            applicable_types=["object", "string"]
+        )
+        self.pattern = pattern
+        try:
+            self.compiled_pattern = re.compile(pattern)
+        except re.error:
+            logger.error(f"Invalid regular expression pattern: {pattern}")
+            self.compiled_pattern = None
+
+    def evaluate(self, column_stats):
+        """
+        Evaluate if string value matches pattern.
+
+        Args:
+            column_stats: Dictionary of statistics for a column 
+
+        Returns:
+            dict: Evaluation results
+        """
+        if self.compiled_pattern is None:
+            return {
+                "passed": False,
+                "reason": "Invalid pattern",
+                "details": f"The pattern '{self.pattern}' is not a valid regular expression"
+            }
+            
+        # Check if we have sample values to test
+        if 'stats' not in column_stats or 'sample_values' not in column_stats['stats']:
+            logger.warning(f"Cannot evaluate {self.name}: no sample values available")
+            return {
+                "passed": False,
+                "reason": "Required statistics not available",
+                "details": "Missing 'sample_values' statistic"
+            }
+        
+        sample_values = column_stats['stats']['sample_values']
+        invalid_samples = []
+        
+        # Test pattern against sample values
+        for value in sample_values:
+            if value is not None and value != "":
+                if not self.compiled_pattern.match(str(value)):
+                    invalid_samples.append(value)
+        
+        passed = len(invalid_samples) == 0
+        
+        # Create message
+        if passed:
+            message = f"All sample values match pattern: {self.pattern}"
+        else:
+            message = f"{len(invalid_samples)} sample values do not match pattern: {self.pattern}"
+            if invalid_samples:
+                message += f" (examples: {invalid_samples[:3]})"
+        
+        return {
+            "passed": passed,
+            "pattern": self.pattern,
+            "invalid_count": len(invalid_samples),
+            "invalid_samples": invalid_samples[:5],
             "message": message
         }
     
