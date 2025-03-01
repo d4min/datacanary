@@ -46,12 +46,15 @@ def main():
     check_parser.add_argument("--region", help="AWS region")
     check_parser.add_argument("--report", help="Output file path for the text report")
     check_parser.add_argument("--json", help="Output file path for the JSON results")
+    check_parser.add_argument("--rules", help="Path to rule configuration file (YAML or JSON)")
+
 
     # 'check-local' command for local files
     check_local_parser = subparsers.add_parser("check-local", help="Run data quality checks on local file")
     check_local_parser.add_argument("--file", required=True, help="Path to local Parquet file")
     check_local_parser.add_argument("--report", help="Output file path for the text report")
     check_local_parser.add_argument("--json", help="Output file path for the JSON results")
+    check_local_parser.add_argument("--rules", help="Path to rule configuration file (YAML or JSON)")
 
     # Parse arguments
     args = parser.parse_args()
@@ -139,9 +142,14 @@ def run_check(args):
     reporter = ReportGenerator()
     
     # Add rules to the engine
-    engine.add_rule(NullPercentageRule(threshold=5.0))
-    engine.add_rule(UniqueValueRule(threshold=90.0))
-    engine.add_rule(ValueRangeRule(min_value=0))
+    if args.rules:
+        from datacanary.config.rule_config import apply_rules_to_engine
+        apply_rules_to_engine(engine, args.rules)
+    else:
+        # Add default rules
+        engine.add_rule(NullPercentageRule(threshold=5.0))
+        engine.add_rule(UniqueValueRule(threshold=90.0))
+        engine.add_rule(ValueRangeRule(min_value=0))
 
     # Read the data from S3
     print(f"Reading data from s3://{args.bucket}/{args.key}")
@@ -243,9 +251,14 @@ def run_check_local(args):
     reporter = ReportGenerator()
     
     # Add rules to the engine
-    engine.add_rule(NullPercentageRule(threshold=5.0))
-    engine.add_rule(UniqueValueRule(threshold=90.0))
-    engine.add_rule(ValueRangeRule(min_value=0))
+    if args.rules:
+        from datacanary.config.rule_config import apply_rules_to_engine
+        apply_rules_to_engine(engine, args.rules)
+    else:
+        # Add default rules
+        engine.add_rule(NullPercentageRule(threshold=5.0))
+        engine.add_rule(UniqueValueRule(threshold=90.0))
+        engine.add_rule(ValueRangeRule(min_value=0))
     
     # Read the local file
     print(f"Reading data from {args.file}")
