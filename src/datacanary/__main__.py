@@ -27,10 +27,18 @@ def main():
 
     # 'analyse' command
     analyse_parser = subparsers.add_parser("analyse", help="analyse data statistics")
+    # s3
     analyse_parser.add_argument("--bucket", required=True, help="S3 bucket name")
     analyse_parser.add_argument("--key", required=True, help="S3 object key (path to Parquet file)")
     analyse_parser.add_argument("--profile", help="AWS profile name")
     analyse_parser.add_argument("--region", help="AWS region")
+    # azure
+    analyse_parser.add_argument("--azure-container", help="Azure Blob Storage container name")
+    analyse_parser.add_argument("--azure-blob", help="Azure Blob Storage blob name (path to Parquet file)")
+    analyse_parser.add_argument("--azure-connection-string", help="Azure Storage connection string")
+    analyse_parser.add_argument("--azure-account-url", help="Azure Storage account URL")
+    analyse_parser.add_argument("--azure-account-key", help="Azure Storage account key")
+    #generic
     analyse_parser.add_argument("--output", help="Output file path for JSON results")
 
     # 'analyse-local' command for local files
@@ -40,14 +48,21 @@ def main():
 
     # 'check' command
     check_parser = subparsers.add_parser("check", help="Run data quality checks")
+    # s3
     check_parser.add_argument("--bucket", required=True, help="S3 bucket name")
     check_parser.add_argument("--key", required=True, help="S3 object key (path to Parquet file)")
     check_parser.add_argument("--profile", help="AWS profile name")
     check_parser.add_argument("--region", help="AWS region")
+    # azure
+    check_parser.add_argument("--azure-container", help="Azure Blob Storage container name")
+    check_parser.add_argument("--azure-blob", help="Azure Blob Storage blob name (path to Parquet file)")
+    check_parser.add_argument("--azure-connection-string", help="Azure Storage connection string")
+    check_parser.add_argument("--azure-account-url", help="Azure Storage account URL")
+    check_parser.add_argument("--azure-account-key", help="Azure Storage account key")
+    #generic
     check_parser.add_argument("--report", help="Output file path for the text report")
     check_parser.add_argument("--json", help="Output file path for the JSON results")
     check_parser.add_argument("--rules", help="Path to rule configuration file (YAML or JSON)")
-
 
     # 'check-local' command for local files
     check_local_parser = subparsers.add_parser("check-local", help="Run data quality checks on local file")
@@ -79,21 +94,37 @@ def main():
 
 def run_analyse(args):
     """Run the analyse command."""
-    # Create S3 connector and analyser
-    connector = S3Connector(
-        aws_profile=args.profile,
-        aws_region=args.region
-    )
-    analyser = StatisticalAnalyser()
-
-    # Read the data from S3
-    print(f"Reading data from s3://{args.bucket}/{args.key}")
-    try:
-        df = connector.read_parquet(args.bucket, args.key)
-        print(f"Read {len(df)} rows and {len(df.columns)} columns")
-    except Exception as e:
-        print(f"Error reading data: {e}")
+    # Determine which connector to use
+    if args.bucket and args.key:
+        # Use S3 connector
+        connector = S3Connector(
+            aws_profile=args.profile,
+            aws_region=args.region
+        )
+        data_source = f"s3://{args.bucket}/{args.key}"
+        try:
+            df = connector.read_parquet(args.bucket, args.key)
+        except Exception as e:
+            print(f"Error reading data from S3: {e}")
+            sys.exit(1)
+    elif args.azure_container and args.azure_blob:
+        # Use Azure connector
+        from datacanary.connectors.azure_connector import AzureConnector
+        try:
+            connector = AzureConnector(
+                connection_string=args.azure_connection_string,
+                account_url=args.azure_account_url,
+                account_key=args.azure_account_key
+            )
+            data_source = f"azure://{args.azure_container}/{args.azure_blob}"
+            df = connector.read_parquet(args.azure_container, args.azure_blob)
+        except Exception as e:
+            print(f"Error reading data from Azure: {e}")
+            sys.exit(1)
+    else:
+        print("Error: You must specify either S3 (--bucket and --key) or Azure (--azure-container and --azure-blob) source")
         sys.exit(1)
+    analyser = StatisticalAnalyser()
     
     # analyse the data
     print("Analysing data...")
@@ -132,11 +163,36 @@ def run_analyse(args):
 
 def run_check(args):
     """Run the check command."""
-    # Create components
-    connector = S3Connector(
-        aws_profile=args.profile,
-        aws_region=args.region
-    )
+    # Determine which connector to use
+    if args.bucket and args.key:
+        # Use S3 connector
+        connector = S3Connector(
+            aws_profile=args.profile,
+            aws_region=args.region
+        )
+        data_source = f"s3://{args.bucket}/{args.key}"
+        try:
+            df = connector.read_parquet(args.bucket, args.key)
+        except Exception as e:
+            print(f"Error reading data from S3: {e}")
+            sys.exit(1)
+    elif args.azure_container and args.azure_blob:
+        # Use Azure connector
+        from datacanary.connectors.azure_connector import AzureConnector
+        try:
+            connector = AzureConnector(
+                connection_string=args.azure_connection_string,
+                account_url=args.azure_account_url,
+                account_key=args.azure_account_key
+            )
+            data_source = f"azure://{args.azure_container}/{args.azure_blob}"
+            df = connector.read_parquet(args.azure_container, args.azure_blob)
+        except Exception as e:
+            print(f"Error reading data from Azure: {e}")
+            sys.exit(1)
+    else:
+        print("Error: You must specify either S3 (--bucket and --key) or Azure (--azure-container and --azure-blob) source")
+        sys.exit(1)
     analyser = StatisticalAnalyser()
     engine = RuleEngine()
     reporter = ReportGenerator()
@@ -150,15 +206,6 @@ def run_check(args):
         engine.add_rule(NullPercentageRule(threshold=5.0))
         engine.add_rule(UniqueValueRule(threshold=90.0))
         engine.add_rule(ValueRangeRule(min_value=0))
-
-    # Read the data from S3
-    print(f"Reading data from s3://{args.bucket}/{args.key}")
-    try:
-        df = connector.read_parquet(args.bucket, args.key)
-        print(f"Read {len(df)} rows and {len(df.columns)} columns")
-    except Exception as e:
-        print(f"Error reading data: {e}")
-        sys.exit(1)
     
     # analyse the data
     print("Analysing data...")
