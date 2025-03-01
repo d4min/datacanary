@@ -24,3 +24,30 @@ python basic_s3_connection.py --bucket your-bucket-name --key path/to/file.parqu
 
 # Use a specific AWS profile
 python basic_s3_connection.py --bucket your-bucket-name --profile your-profile-name
+
+```
+
+## Data Analysis Example
+
+The `analyse_data.py` script demonstrates how to use DataCanary's statistical analyzer to extract insights from your data:
+
+- Connect to AWS S3
+- Read a Parquet file
+- Perform statistical analysis on all columns
+- Display a summary of the analysis
+- Save the detailed analysis as JSON
+
+### Usage
+
+```bash
+# Basic usage - analyse data and display results
+python analyse_data.py --bucket your-bucket-name --key path/to/file.parquet
+
+# Save the analysis results to a JSON file
+python analyse_data.py --bucket your-bucket-name --key path/to/file.parquet --output analysis.json
+
+# Use a specific AWS profile and region
+python analyse_data.py --bucket your-bucket-name --key path/to/file.parquet --profile your-profile --region us-west-2
+```
+
+
