@@ -47,7 +47,7 @@ def main():
     
     # Analyze the data
     print("Analysing data...")
-    analysis_results = analyser.analyze_dataframe(df)
+    analysis_results = analyser.analyse_dataframe(df)
     
     # Evaluate the rules
     print("Evaluating data quality rules...")
