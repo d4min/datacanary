@@ -374,7 +374,7 @@ def run_check_local(args):
             print(f"- {recommendation}")
     
     # Generate a report
-    report = reporter.generate_text_report(args.key, analysis_results, rule_results)
+    report = reporter.generate_text_report(args.file, analysis_results, rule_results)
     print("\nData Quality Report:")
     print(report)
     
