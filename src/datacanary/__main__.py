@@ -214,6 +214,30 @@ def run_check(args):
     # Evaluate the rules
     print("Evaluating data quality rules...")
     rule_results = engine.evaluate_dataframe(analysis_results)
+
+    # After rule evaluation, generate insights
+    from datacanary.analysis.summary_statistics import SummaryStatistics
+    from datacanary.analysis.trend_detection import TrendDetector
+
+    # Get summary statistics and health score
+    summary_stats = SummaryStatistics().calculate_summary(analysis_results)
+    health_score = SummaryStatistics().get_health_score(analysis_results, rule_results)
+
+    # Get insights
+    insights = TrendDetector().get_data_insights(analysis_results)
+
+    # Print health score and insights
+    print(f"\nHealth Score: {health_score['health_score']} ({health_score['health_status']})")
+    
+    if insights['summary']:
+        print("\nData Insights:")
+        for insight in insights['summary']:
+            print(f"- {insight}")
+    
+    if insights['recommendations']:
+        print("\nRecommendations:")
+        for recommendation in insights['recommendations']:
+            print(f"- {recommendation}")
     
     # Generate a report
     report = reporter.generate_text_report(args.key, analysis_results, rule_results)
@@ -324,6 +348,30 @@ def run_check_local(args):
     # Evaluate the rules
     print("Evaluating data quality rules...")
     rule_results = engine.evaluate_dataframe(analysis_results)
+
+    # After rule evaluation, generate insights
+    from datacanary.analysis.summary_statistics import SummaryStatistics
+    from datacanary.analysis.trend_detection import TrendDetector
+    
+    # Get summary statistics and health score
+    summary_stats = SummaryStatistics().calculate_summary(analysis_results)
+    health_score = SummaryStatistics().get_health_score(analysis_results, rule_results)
+    
+    # Get insights
+    insights = TrendDetector().get_data_insights(analysis_results)
+    
+    # Print health score and insights
+    print(f"\nHealth Score: {health_score['health_score']} ({health_score['health_status']})")
+    
+    if insights['summary']:
+        print("\nData Insights:")
+        for insight in insights['summary']:
+            print(f"- {insight}")
+    
+    if insights['recommendations']:
+        print("\nRecommendations:")
+        for recommendation in insights['recommendations']:
+            print(f"- {recommendation}")
     
     # Generate a report
     report = reporter.generate_text_report(args.key, analysis_results, rule_results)
