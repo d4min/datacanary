@@ -10,6 +10,7 @@ setup(
         "boto3",
         "pyarrow",
         "azure-storage-blob>=12.0.0",
+        "google-cloud-storage>=2.0.0",
         "pyyaml",           
         "numpy",
     ],
