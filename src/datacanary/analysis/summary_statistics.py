@@ -8,12 +8,12 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-class SummaryStatistics():
+class SummaryStatistics:
     """
     Generates summary statistics for an entire dataset
     """
 
-    def calculate_summary(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
+    def calculate_summary(self, analysis_results):
         """
         Calculate summary statistics from analysis results.
         
