@@ -64,14 +64,51 @@ class ReportGenerator:
         logger.info(f"Generating text report for dataset: {dataset_name}")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # Generate summary statistics and insights
+        from datacanary.analysis.summary_statistics import SummaryStatistics
+        from datacanary.analysis.trend_detection import TrendDetector
+
+        summary_stats = SummaryStatistics().calculate_summary(analysis_results)
+        health_score = SummaryStatistics().get_health_score(analysis_results, rule_results)
+        insights = TrendDetector().get_data_insights(analysis_results)
+
         report = [
             f"= DataCanary Quality Report =",
             f"Dataset: {dataset_name}",
             f"Generated: {now}",
             f"Total columns: {len(analysis_results)}",
+            f"Health Score: {health_score['health_score']} ({health_score['health_status']})",
             ""
         ]
-        
+
+        # Add dataset summary section
+        report.append("== Dataset Summary ==")
+        dataset_stats = summary_stats['dataset_statistics']
+        report.append(f"Total columns: {dataset_stats['total_columns']}")
+
+        # Format column types
+        column_types_str = ", ".join([f"{type}: {count}" for type, count in dataset_stats['column_types'].items()])
+        report.append(f"Column types: {column_types_str}")
+
+        report.append(f"Columns with nulls: {dataset_stats['columns_with_nulls']} ({dataset_stats['columns_with_nulls_percentage']}%)")
+        report.append(f"Average null percentage: {dataset_stats['avg_null_percentage']}%")
+        report.append(f"Average unique percentage: {dataset_stats['avg_unique_percentage']}%")
+        report.append("")
+
+        # Add data insights section
+        if insights['summary']:
+            report.append("== Data Insights ==")
+            for insight in insights['summary']:
+                report.append(f"- {insight}")
+            report.append("")
+
+        # Add recommendations section
+        if insights['recommendations']:
+            report.append("== Recommendations ==")
+            for recommendation in insights['recommendations']:
+                report.append(f"- {recommendation}")
+            report.append("")
+
         # Overall statistics
         total_rules = 0
         passed_rules = 0
