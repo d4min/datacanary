@@ -1,6 +1,7 @@
 """
 Main entry point for the DataCanary command-line tool.
 """
+import os
 import argparse
 import json
 import sys
@@ -16,6 +17,39 @@ from datacanary.rules.rule_engine import (
 from datacanary.reporting.report_generator import ReportGenerator
 from datacanary.utils.logging import setup_logging
 
+def get_default_credential_path(cloud_provider):
+    """
+    Get the default path for cloud provider credentials. 
+
+    Args:
+        cloud_provider: String indicating the cloud provider ('s3', 'azure', 'gcs')
+    
+    Returns:
+        String path to the default credential file or None if it doesn't exist
+    """
+    # Get the project root directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_dir))  # Adjust as needed for your structure
+    
+    # Define standard credential file names
+    credential_files = {
+        's3': 's3_credentials.csv',
+        'azure': 'azure_credentials.json',
+        'gcs': 'gcs_credentials.json'
+    }
+
+    if cloud_provider not in credential_files:
+        return None
+    
+    # Build the default credential path
+    cred_path = os.path.join(project_root, 'credentials', credential_files[cloud_provider])
+    
+    # Check if the file exists
+    if os.path.exists(cred_path):
+        return cred_path
+    
+    return None
+
 def main():
     """Main entry point for the DataCanary CLI."""
     # Set up argument parser
@@ -28,8 +62,8 @@ def main():
     # 'analyse' command
     analyse_parser = subparsers.add_parser("analyse", help="analyse data statistics")
     # s3
-    analyse_parser.add_argument("--bucket", required=True, help="S3 bucket name")
-    analyse_parser.add_argument("--key", required=True, help="S3 object key (path to Parquet file)")
+    analyse_parser.add_argument("--bucket", help="S3 bucket name")
+    analyse_parser.add_argument("--key", help="S3 object key (path to Parquet file)")
     analyse_parser.add_argument("--profile", help="AWS profile name")
     analyse_parser.add_argument("--region", help="AWS region")
     # azure
@@ -38,6 +72,11 @@ def main():
     analyse_parser.add_argument("--azure-connection-string", help="Azure Storage connection string")
     analyse_parser.add_argument("--azure-account-url", help="Azure Storage account URL")
     analyse_parser.add_argument("--azure-account-key", help="Azure Storage account key")
+    # gcs
+    analyse_parser.add_argument("--gcs-bucket", help="Google Cloud Storage bucket name")
+    analyse_parser.add_argument("--gcs-blob", help="Google Cloud Storage blob name (path to Parquet file)")
+    analyse_parser.add_argument("--gcs-credentials", help="Path to GCS service account JSON key file")
+    analyse_parser.add_argument("--gcs-project", help="Google Cloud project ID")
     #generic
     analyse_parser.add_argument("--output", help="Output file path for JSON results")
 
@@ -49,8 +88,8 @@ def main():
     # 'check' command
     check_parser = subparsers.add_parser("check", help="Run data quality checks")
     # s3
-    check_parser.add_argument("--bucket", required=True, help="S3 bucket name")
-    check_parser.add_argument("--key", required=True, help="S3 object key (path to Parquet file)")
+    check_parser.add_argument("--bucket", help="S3 bucket name")
+    check_parser.add_argument("--key", help="S3 object key (path to Parquet file)")
     check_parser.add_argument("--profile", help="AWS profile name")
     check_parser.add_argument("--region", help="AWS region")
     # azure
@@ -59,6 +98,11 @@ def main():
     check_parser.add_argument("--azure-connection-string", help="Azure Storage connection string")
     check_parser.add_argument("--azure-account-url", help="Azure Storage account URL")
     check_parser.add_argument("--azure-account-key", help="Azure Storage account key")
+    # gcs
+    check_parser.add_argument("--gcs-bucket", help="Google Cloud Storage bucket name")
+    check_parser.add_argument("--gcs-blob", help="Google Cloud Storage blob name (path to Parquet file)")
+    check_parser.add_argument("--gcs-credentials", help="Path to GCS service account JSON key file")
+    check_parser.add_argument("--gcs-project", help="Google Cloud project ID")
     #generic
     check_parser.add_argument("--report", help="Output file path for the text report")
     check_parser.add_argument("--json", help="Output file path for the JSON results")
@@ -94,8 +138,43 @@ def main():
 
 def run_analyse(args):
     """Run the analyse command."""
+    # Verify that at least one cloud provider's arguments are specified
+    has_s3_args = args.bucket and args.key
+    has_azure_args = args.azure_container and args.azure_blob
+    has_gcs_args = args.gcs_bucket and args.gcs_blob
+
+    if not (has_s3_args or has_azure_args or has_gcs_args):
+        print("Error: You must specify either S3 (--bucket and --key), "
+              "Azure (--azure-container and --azure-blob), or "
+              "GCS (--gcs-bucket and --gcs-blob) source")
+        sys.exit(1)
+    
     # Determine which connector to use
-    if args.bucket and args.key:
+    if has_s3_args:
+        aws_profile = args.profile
+
+        if not aws_profile:
+            default_creds = get_default_credential_path('s3')
+            if default_creds:
+                try:
+                    import csv
+                    with open(default_creds, 'r') as f:
+                        csv_reader = csv.reader(f)
+                        # Skip header row
+                        headers = next(csv_reader)
+                        # Read credentials row
+                        for row in csv_reader:
+                            # Should only be one row with credentials
+                            if len(row) >= 2:
+                                aws_access_key = row[0]
+                                aws_secret_key = row[1]
+                                break
+                    if aws_access_key and aws_secret_key:
+                        os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key
+                        os.environ['AWS_SECRET_ACCESS_KEY'] = aws_secret_key
+                        print(f"Using AWS credentials from: {default_creds}")
+                except Exception as e:
+                    print(f"Error loading S3 credentials: {e}")
         # Use S3 connector
         connector = S3Connector(
             aws_profile=args.profile,
@@ -107,9 +186,27 @@ def run_analyse(args):
         except Exception as e:
             print(f"Error reading data from S3: {e}")
             sys.exit(1)
-    elif args.azure_container and args.azure_blob:
+    elif has_azure_args:
         # Use Azure connector
         from datacanary.connectors.azure_connector import AzureConnector
+
+        connection_string = args.azure_connection_string
+        account_url = args.azure_account_url
+        account_key = args.azure_account_key
+
+        if not (connection_string or (account_url and account_key)):
+            default_creds = get_default_credential_path('azure')
+            if default_creds:
+                print(f"Using default Azure credentials from: {default_creds}")
+                try:
+                    with open(default_creds, 'r') as f:
+                        creds = json.load(f)
+                        connection_string = creds.get('connection_string')
+                        account_url = creds.get('account_url')
+                        account_key = creds.get('account_key')
+                except Exception as e:
+                    print(f"Error loading Azure credentials: {e}")
+
         try:
             connector = AzureConnector(
                 connection_string=args.azure_connection_string,
@@ -121,6 +218,32 @@ def run_analyse(args):
         except Exception as e:
             print(f"Error reading data from Azure: {e}")
             sys.exit(1)
+
+    elif has_gcs_args:
+        # Use GCS connector
+        from datacanary.connectors.gcs_connector import GCSConnector
+        
+        # CHANGED: Added default credential handling for GCS
+        credentials_path = args.gcs_credentials
+        
+        # NEW: Check for default GCS credentials if not explicitly provided
+        if not credentials_path:
+            default_creds = get_default_credential_path('gcs')
+            if default_creds:
+                print(f"Using default GCS credentials from: {default_creds}")
+                credentials_path = default_creds
+        
+        try:
+            connector = GCSConnector(
+                credentials_path=credentials_path,
+                project_id=args.gcs_project
+            )
+            data_source = f"gs://{args.gcs_bucket}/{args.gcs_blob}"
+            df = connector.read_parquet(args.gcs_bucket, args.gcs_blob)
+        except Exception as e:
+            print(f"Error reading data from GCS: {e}")
+            sys.exit(1)
+
     else:
         print("Error: You must specify either S3 (--bucket and --key) or Azure (--azure-container and --azure-blob) source")
         sys.exit(1)
@@ -163,8 +286,43 @@ def run_analyse(args):
 
 def run_check(args):
     """Run the check command."""
+    # Verify that at least one cloud provider's arguments are specified
+    has_s3_args = args.bucket and args.key
+    has_azure_args = args.azure_container and args.azure_blob
+    has_gcs_args = args.gcs_bucket and args.gcs_blob
+
+    if not (has_s3_args or has_azure_args or has_gcs_args):
+        print("Error: You must specify either S3 (--bucket and --key), "
+              "Azure (--azure-container and --azure-blob), or "
+              "GCS (--gcs-bucket and --gcs-blob) source")
+        sys.exit(1)
+
     # Determine which connector to use
-    if args.bucket and args.key:
+    if has_s3_args:
+        aws_profile = args.profile
+
+        if not aws_profile:
+            default_creds = get_default_credential_path('s3')
+            if default_creds:
+                try:
+                    import csv
+                    with open(default_creds, 'r') as f:
+                        csv_reader = csv.reader(f)
+                        # Skip header row
+                        headers = next(csv_reader)
+                        # Read credentials row
+                        for row in csv_reader:
+                            # Should only be one row with credentials
+                            if len(row) >= 2:
+                                aws_access_key = row[0]
+                                aws_secret_key = row[1]
+                                break
+                    if aws_access_key and aws_secret_key:
+                        os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key
+                        os.environ['AWS_SECRET_ACCESS_KEY'] = aws_secret_key
+                        print(f"Using AWS credentials from: {default_creds}")
+                except Exception as e:
+                    print(f"Error loading S3 credentials: {e}")
         # Use S3 connector
         connector = S3Connector(
             aws_profile=args.profile,
@@ -176,9 +334,26 @@ def run_check(args):
         except Exception as e:
             print(f"Error reading data from S3: {e}")
             sys.exit(1)
-    elif args.azure_container and args.azure_blob:
+    elif has_azure_args:
         # Use Azure connector
         from datacanary.connectors.azure_connector import AzureConnector
+
+        connection_string = args.azure_connection_string
+        account_url = args.azure_account_url
+        account_key = args.azure_account_key
+
+        if not (connection_string or (account_url and account_key)):
+            default_creds = get_default_credential_path('azure')
+            if default_creds:
+                print(f"Using default Azure credentials from: {default_creds}")
+                try:
+                    with open(default_creds, 'r') as f:
+                        creds = json.load(f)
+                        connection_string = creds.get('connection_string')
+                        account_url = creds.get('account_url')
+                        account_key = creds.get('account_key')
+                except Exception as e:
+                    print(f"Error loading Azure credentials: {e}")
         try:
             connector = AzureConnector(
                 connection_string=args.azure_connection_string,
@@ -190,6 +365,32 @@ def run_check(args):
         except Exception as e:
             print(f"Error reading data from Azure: {e}")
             sys.exit(1)
+
+    elif has_gcs_args:
+        # Use GCS connector
+        from datacanary.connectors.gcs_connector import GCSConnector
+        
+        # CHANGED: Added default credential handling for GCS
+        credentials_path = args.gcs_credentials
+        
+        # NEW: Check for default GCS credentials if not explicitly provided
+        if not credentials_path:
+            default_creds = get_default_credential_path('gcs')
+            if default_creds:
+                print(f"Using default GCS credentials from: {default_creds}")
+                credentials_path = default_creds
+        
+        try:
+            connector = GCSConnector(
+                credentials_path=credentials_path,
+                project_id=args.gcs_project
+            )
+            data_source = f"gs://{args.gcs_bucket}/{args.gcs_blob}"
+            df = connector.read_parquet(args.gcs_bucket, args.gcs_blob)
+        except Exception as e:
+            print(f"Error reading data from GCS: {e}")
+            sys.exit(1)
+
     else:
         print("Error: You must specify either S3 (--bucket and --key) or Azure (--azure-container and --azure-blob) source")
         sys.exit(1)
@@ -240,7 +441,7 @@ def run_check(args):
             print(f"- {recommendation}")
     
     # Generate a report
-    report = reporter.generate_text_report(args.key, analysis_results, rule_results)
+    report = reporter.generate_text_report(data_source, analysis_results, rule_results)
     print("\nData Quality Report:")
     print(report)
     
